@@ -10,6 +10,7 @@ from torch.autograd import Variable
 
 import pyro
 import pyro.poutine as poutine
+import pyro.util as util
 
 from pyro.distributions.distribution import Distribution
 from pyro.params import param_with_module_name
@@ -128,41 +129,31 @@ def observe(name, fn, obs, *args, **kwargs):
     return sample(name, fn, *args, **kwargs)
 
 
-class _Subsample(Distribution):
+def managed(name, fn, *args, **kwargs):
     """
-    Randomly select a subsample of a range of indices.
+    :param name: name of subsampling site
+    :param callable fn: a function to execute
 
-    Internal use only. This should only be used by `iarange`.
+    Executes a nondeterministic function in a managed way.
     """
-
-    def __init__(self, size, subsample_size, use_cuda=False):
-        """
-        :param int size: the size of the range to subsample from
-        :param int subsample_size: the size of the returned subsample
-        """
-        self.size = size
-        self.subsample_size = subsample_size
-        self.use_cuda = use_cuda
-
-    def sample(self):
-        """
-        :returns: a random subsample of `range(size)`
-        :rtype: torch.autograd.Variable of torch.LongTensor
-        """
-        subsample_size = self.subsample_size
-        if subsample_size is None or subsample_size > self.size:
-            subsample_size = self.size
-        if subsample_size == self.size:
-            result = Variable(torch.LongTensor(list(range(self.size))))
-        else:
-            result = Variable(torch.randperm(self.size)[:self.subsample_size])
-        return result.cuda() if self.use_cuda else result
-
-    def batch_log_pdf(self, x):
-        # This is zero so that iarange can provide an unbiased estimate of
-        # the non-subsampled batch_log_pdf.
-        result = Variable(torch.zeros(1))
-        return result.cuda() if self.use_cuda else result
+    if len(_PYRO_STACK) == 0:
+        return fn(*args, **kwargs)
+    else:
+        msg = {
+            "type": "managed",
+            "name": name,
+            "fn": fn,
+            "args": args,
+            "kwargs": kwargs,
+            "ret": None,
+            "scale": 1.0,
+            "map_data_stack": [],
+            "done": False,
+            "stop": False,
+        }
+        # apply the stack and return its return value
+        out_msg = apply_stack(msg)
+        return out_msg["ret"]
 
 
 @contextlib.contextmanager
@@ -214,7 +205,9 @@ def iarange(name, size=None, subsample_size=None, subsample=None, use_cuda=False
     elif subsample is None:
         names = [name]
         names += [str(f.counter) for f in _PYRO_STACK if isinstance(f, poutine.LambdaPoutine)]
-        subsample = sample("_".join(names), _Subsample(size, subsample_size, use_cuda))
+        subsample = managed("_".join(names), util.subsample_range, size, subsample_size)
+        if use_cuda:
+            subsample = subsample.cuda()
 
     if subsample_size is None:
         subsample_size = len(subsample)

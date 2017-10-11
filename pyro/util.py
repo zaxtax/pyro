@@ -130,6 +130,21 @@ def zero_grads(tensors):
                 p.grad = Variable(data.new().resize_as_(data).zero_())
 
 
+def subsample_range(size, batch_size=None):
+    """
+    :param int size: the size of the range to subsample from
+    :param int batch_size: the size of the returned subsample
+    :returns: a random subsample of `range(size)`
+    :rtype: torch.autograd.Variable of torch.LongTensor
+
+    Randomly select a subsample of a range of indices.
+    """
+    if batch size is None or batch_size >= size:
+        return Variable(torch.LongTensor(list(range(size))))
+    else:
+        return Variable(torch.randperm(size)[:batch_size])
+
+
 def tensor_histogram(ps, vs):
     """
     make a histogram from weighted Variable/Tensor/ndarray samples
@@ -204,7 +219,7 @@ def apply_stack(initial_msg):
 
     # go until time to stop?
     for frame in stack:
-        assert msg["type"] in ("sample", "param"), \
+        assert msg["type"] in ("sample", "param", "managed"), \
             "{} is an invalid site type, how did that get there?".format(msg["type"])
 
         msg["value"] = getattr(frame, "_pyro_{}".format(msg["type"]))(msg)
