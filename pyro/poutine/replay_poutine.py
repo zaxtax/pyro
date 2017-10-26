@@ -19,9 +19,9 @@ class ReplayPoutine(Poutine):
         self.guide_trace = guide_trace
         # case 1: no sites
         if sites is None:
-            self.sites = {site: site for site in guide_trace.nodes.keys()
-                          if guide_trace.nodes[site]["type"] == "sample"
-                          and not guide_trace.nodes[site]["is_observed"]}
+            self.sites = {name: name for name, site in guide_trace.nodes.items()
+                          if (site["type"] == "sample" and not site["is_observed"])
+                          or site["type"] == "managed"}
         # case 2: sites is a list/tuple/set
         elif isinstance(sites, (list, tuple, set)):
             self.sites = {site: site for site in sites}
@@ -91,7 +91,7 @@ class ReplayPoutine(Poutine):
         returns the value from self.guide_trace instead of executing
         from the managed function.
 
-        At a sample site that does not appear in self.guide_trace,
+        At a managed site that does not appear in self.guide_trace,
         reverts to default Poutine._pyro_managed behavior with no additional side effects.
         """
         name = msg["name"]

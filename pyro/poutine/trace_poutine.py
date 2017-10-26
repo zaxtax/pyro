@@ -179,8 +179,9 @@ class TracePoutine(Poutine):
         name = msg["name"]
         if name in self.trace:
             # Cannot repeat names between params and samples
-            if self.trace.nodes[name]['type'] == 'param':
-                raise RuntimeError("{} is already in the trace as a param".format(name))
+            old_type = self.trace.nodes[name]["type"]
+            if old_type != "sample":
+                raise RuntimeError("{} is already in the trace as a {}".format(name, old_type))
             # observe has the same name as a sample
             if msg['is_observed'] and not self.trace.nodes[name]['is_observed']:
                 raise RuntimeError("observe cannot have the same name as a sample")
@@ -209,11 +210,17 @@ class TracePoutine(Poutine):
         Derived classes often compute a side effect,
         then call super(Derived, self)._pyro_managed(msg).
         """
-        name, fn, args, kwargs = \
-            msg["name"], msg["fn"], msg["args"], msg["kwargs"]
-        retrieved = super(TracePoutine, self)._pyro_managed(msg)
-        self.trace.add_managed(name, retrieved, fn, *args, **kwargs)
-        return retrieved
+        name = msg["name"]
+        if name in self.trace:
+            old_type = self.trace.nodes[name]["type"]
+            if old_type != "managed":
+                raise RuntimeError("{} is already in the trace as a {}".format(name, old_type))
+
+        val = super(TracePoutine, self)._pyro_managed(msg)
+        site = msg.copy()
+        site.update(value=val)
+        self.trace.add_node(name, **site)
+        return val
 
     def _pyro_param(self, msg):
         """
@@ -228,12 +235,14 @@ class TracePoutine(Poutine):
         If it does exist, grab it from the parameter store.
         Store the parameter in self.trace, and then return the parameter.
         """
-        if msg["name"] in self.trace:
-            if self.trace.nodes[msg['name']]['type'] == "sample":
-                raise RuntimeError("{} is already in the trace as a sample".format(msg['name']))
+        name = msg["name"]
+        if name in self.trace:
+            old_type = self.trace.nodes[name]["type"]
+            if old_type != "param":
+                raise RuntimeError("{} is already in the trace as a {}".format(name, old_type))
 
         val = super(TracePoutine, self)._pyro_param(msg)
         site = msg.copy()
         site.update(value=val)
-        self.trace.add_node(msg["name"], **site)
+        self.trace.add_node(name, **site)
         return val

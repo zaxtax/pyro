@@ -12,7 +12,6 @@ import pyro
 import pyro.poutine as poutine
 import pyro.util as util
 
-from pyro.distributions.distribution import Distribution
 from pyro.params import param_with_module_name
 from pyro.params.param_store import ParamStoreDict
 from pyro.poutine import LambdaPoutine, condition, do  # noqa: F401
@@ -145,7 +144,7 @@ def managed(name, fn, *args, **kwargs):
             "fn": fn,
             "args": args,
             "kwargs": kwargs,
-            "ret": None,
+            "value": None,
             "scale": 1.0,
             "map_data_stack": [],
             "done": False,
@@ -153,7 +152,7 @@ def managed(name, fn, *args, **kwargs):
         }
         # apply the stack and return its return value
         out_msg = apply_stack(msg)
-        return out_msg["ret"]
+        return out_msg["value"]
 
 
 @contextlib.contextmanager

@@ -139,7 +139,7 @@ def subsample_range(size, batch_size=None):
 
     Randomly select a subsample of a range of indices.
     """
-    if batch size is None or batch_size >= size:
+    if batch_size is None or batch_size >= size:
         return Variable(torch.LongTensor(list(range(size))))
     else:
         return Variable(torch.randperm(size)[:batch_size])
