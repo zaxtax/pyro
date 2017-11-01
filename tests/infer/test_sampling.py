@@ -122,3 +122,29 @@ class ImportanceTest(NormalNormalSamplingTestCase):
                          prec=0.01)
         self.assertEqual(0, torch.norm(posterior_stddev - self.mu_stddev).data[0],
                          prec=0.1)
+
+
+def fails_on_pytorch_66d24c5():
+    pyro._param_store.clear()
+    data = Variable(torch.zeros(50, 1))
+
+    def model():
+        mu = pyro.sample("mu", Normal(Variable(torch.zeros(1)),
+                                      Variable(torch.ones(1))))
+        xd = Normal(mu, Variable(torch.ones(1)), batch_size=50)
+        pyro.observe("xs", xd, data)
+        return mu
+
+    def guide():
+        return pyro.sample("mu", Normal(Variable(torch.zeros(1)),
+                                        Variable(torch.ones(1))))
+
+    mu_mean = Variable(torch.zeros(1))
+    mu_stddev = torch.sqrt(Variable(torch.ones(1)) / 51.0)
+    posterior = pyro.infer.Importance(model, guide=guide, num_samples=10000)
+    marginal = pyro.infer.Marginal(posterior)
+    posterior_samples = [marginal() for i in range(1000)]
+
+
+if __name__ == '__main__':
+    fails_on_pytorch_66d24c5()
